@@ -1,3 +1,7 @@
+Try directly in:
+
+[![Binder](http://mybinder.org/badge.svg)]
+
 GOTO: ~/prog/google_apps_accounts/gssis/utilities
 MAIN FILE:
 csvreader_udea.py
