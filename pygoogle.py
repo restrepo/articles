@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 """
 Google AJAX Search Module
 http://code.google.com/apis/ajaxsearch/documentation/reference.html
@@ -80,16 +80,16 @@ class pygoogle:
                     'filter' : self.filter,    
                     'hl'    : self.hl
                     }
-            q = urllib.urlencode(args)
-            search_results = urllib.urlopen(URL+q)
-            data = json.loads(search_results.read())
+            q = urllib.parse.urlencode(args)
+            search_results = urllib.request.urlopen(URL+q)
+            data = json.loads(search_results.read().decode())
             if print_results:
                 if data['responseStatus'] == 200:
                     for result in  data['responseData']['results']:
                         if result:
-                            print '[%s]'%(urllib.unquote(result['titleNoFormatting']))
-                            print result['content'].strip("<b>...</b>").replace("<b>",'').replace("</b>",'').replace("&#39;","'").strip()
-                            print urllib.unquote(result['unescapedUrl'])+'\n'                
+                            print('[%s]'%(urllib.unquote(result['titleNoFormatting'])))
+                            print(result['content'].strip("<b>...</b>").replace("<b>",'').replace("</b>",'').replace("&#39;","'").strip())
+                            print(urllib.unquote(result['unescapedUrl'])+'\n')                
             results.append(data)
         return results
     
@@ -114,9 +114,9 @@ class pygoogle:
                     'safe' : SAFE_OFF, 
                     'filter' : FILTER_ON,    
                     }
-            q = urllib.urlencode(args)
-            search_results = urllib.urlopen(URL+q)
-            data = json.loads(search_results.read())
+            q = urllib.parse.urlencode(args)
+            search_results = urllib.request.urlopen(URL+q)
+            data = json.loads(search_results.read().decode())
             urls = []
             for result in  data['responseData']['results']:
                 if result:
@@ -144,8 +144,8 @@ class pygoogle:
         result_count = 0
         try:
             result_count = self.__search__()[0]['responseData']['cursor']['estimatedResultCount']
-        except Exception,e:
-            print e
+        except Exception as e:
+            print(e)
         finally:
             self.pages = temp
         return result_count
@@ -160,6 +160,6 @@ if __name__ == "__main__":
     query = ' '.join(sys.argv[1:])
     #print pygoogle(' '.join(sys.argv[1:])).display_results()
     g = pygoogle(query)
-    print '*Found %s results*'%(g.get_result_count())
+    print('*Found %s results*'%(g.get_result_count()))
     g.pages = 1
     g.display_results()
