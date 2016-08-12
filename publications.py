@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import re
 import requests
 import warnings
 import time
@@ -7,6 +8,7 @@ import sys
 from IPython.display import display, HTML
 import tabulate #sudo pip3 install tabulate
 import utilities as ut
+from cmdlike import *
 pd.set_option('display.max_rows', 500)
 pd.set_option('display.max_columns', 500)
 pd.set_option('display.max_colwidth',200)
@@ -22,8 +24,6 @@ def _get_doi(surname='Florez',\
         '''
         Search doi from http://search.crossref.org/ 
         '''
-        import re
-        import requests
         doi={}
         search=''
         if surname:
@@ -64,6 +64,27 @@ def _get_impact_factor_from_journal_name(journal_name='Physical Review D'):
     r = requests.get(URL)
     return ut.html_to_DataFrame(r.content)
     #UDPATE in repo
+    
+def _get_quartil(issn='1550-7998',journal_hindex=False):
+    URL='http://www.scimagojr.com/journalsearch.php?q='
+    r=requests.get('%s%s' %(URL,issn))
+    result=r.text.split('href="journalsearch.php?q=')
+    quartil='';hindex_journal=''
+    if type(result)==list and len(result)==3:
+        id_jour=result[-1].split('">')[0]
+        if id_jour:
+            rr=requests.get('%s%s' %(URL,id_jour))
+            quartil=grep('^\s+var dataquartiles = ',rr.text).split(';')
+            quartil.remove('')
+            if type(quartil)==list and len(quartil)>0:
+                quartil=quartil[-1].replace('"','')
+            hindex=rr.text.split('<div class="hindexnumber">')
+            if type(hindex)==list and len(hindex)==2:
+                hindex_journal=hindex[1].split('</div>')[0]
+    if journal_hindex:
+        return quartil,hindex_journal
+    else:
+        return quartil    
 
 class publications(object):
     '''Add Generic publication data'''
@@ -172,13 +193,15 @@ class articles(publications):
     def articles_update(self,cites=True,institution_authors=False,institution_groups=False,DOI=False,\
                         impact_factor=False):
         self.fulldoi=pd.DataFrame()
-        newcolumns=['Institution_Authors','Institution_Groups','DOI','ISSN','DOI_Journal','Impact_Factor']
+        journal_columns=['Impact_Factor','Quartil','Journal_Hindex']
+        newcolumns=['Institution_Authors','Institution_Groups','DOI','ISSN','DOI_Journal']+journal_columns
         for newcolumn in newcolumns:
             if not newcolumn in self.articles.columns:
                 self.articles[newcolumn]=''
 
         self.articles=self.articles.reset_index(drop=True).fillna('')
         print('Updating entry:',end="")
+        dbj=pd.DataFrame()
         for i in range(self.articles.shape[0]):
             time.sleep(0.3) #avoid robot detection
             print('%d.' %i,end="")
@@ -247,6 +270,19 @@ class articles(publications):
                         
                         
                 self.fulldoi=self.fulldoi.append(rr,ignore_index=True).fillna('')
+                
+            #WARNING: Only specific journal info related code from here: See the continue !!!!
+            #JOURNAL info:
+            if i>0 and 'ISSN' in self.articles:
+                dbj=self.articles[:i][self.articles[:i].ISSN.str.contains(\
+                              self.articles.ISSN.ix[i].split(';')[0])].reset_index(drop=True)
+            
+            if dbj.shape[0]>0:
+                for k in journal_columns:
+                    if k in self.articles:
+                        self.articles.loc[i,k]=dbj.ix[0][k]
+                continue   
+            
             #Update IF
             q=''
             if self.articles.ix[i].DOI_Journal:
@@ -257,6 +293,15 @@ class articles(publications):
             if IFdf.shape[0]>0:
                 if update_column(self.articles.ix[i],'Impact_Factor') and 'IF' in IFdf:
                     self.articles.loc[i,'Impact_Factor']=eval(IFdf.ix[0].IF)
+            
+            #Update quartil
+            if self.articles.ix[i].ISSN.split(';')[0]:
+                quartil,hindex_journal=_get_quartil(self.articles.ix[i].ISSN.split(';')[0],journal_hindex=True)
+                if update_column(self.articles.ix[i],'Quartil') and  quartil:
+                        self.articles.loc[i,'Quartil']=quartil
+                if update_column(self.articles.ix[i],'Journal_Hindex') and hindex_journal:
+                        self.articles.loc[i,'Journal_Hindex']=hindex_journal                    
+            
         return self.fulldoi.fillna('')
 
     def to_csv(self,csvfile):
