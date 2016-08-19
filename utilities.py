@@ -10,14 +10,15 @@ def html_to_DataFrame(html_page_with_table,attrs={}):
     table = soup.find("table",attrs)
 
     # The first tr contains the field names.
-    headings = [th.get_text().strip() for th in table.find("tr").find_all("td")]
+    if table:
+        headings = [th.get_text().strip() for th in table.find("tr").find_all("td")]
 
-    datasets = []
-    for row in table.find_all("tr")[1:]:
-        dataset = [td.get_text() for td in row.find_all("td") if td.get_text().strip()]
-        datasets.append(dataset)
+        datasets = []
+        for row in table.find_all("tr")[1:]:
+            dataset = [td.get_text() for td in row.find_all("td") if td.get_text().strip()]
+            datasets.append(dataset)
         
-    if headings:  
-        return pd.DataFrame(datasets,columns=headings)
+        if headings:  
+            return pd.DataFrame(datasets,columns=headings)
     else:
         return pd.DataFrame()
