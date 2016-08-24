@@ -1,7 +1,7 @@
 #/usr/bin/env python
 from bs4 import BeautifulSoup
 import pandas as pd
-def html_to_DataFrame(html_page_with_table,attrs={}):
+def html_to_DataFrame(html_page_with_table,attrs={},headings=[]):
     '''
     Extract the table of a web page and convert to a pandas DataFrame
     '''
@@ -11,7 +11,8 @@ def html_to_DataFrame(html_page_with_table,attrs={}):
 
     # The first tr contains the field names.
     if table:
-        headings = [th.get_text().strip() for th in table.find("tr").find_all("td")]
+        if not headings:
+            headings = [th.get_text().strip() for th in table.find("tr").find_all("td")]
 
         datasets = []
         for row in table.find_all("tr")[1:]:
