@@ -162,11 +162,11 @@ class articles(publications):
             
         if authors_file:
             #DEBUG: chek is file exists,
-            self.institution_authors=pd.read_json(authors_file).fillna('')
+            self.institution_authors=pd.read_csv(authors_file).fillna('')
             
         if group_file:
             #DEBUG: chek is file exists,
-            self.institution_group=pd.read_json(group_file).fillna('')
+            self.institution_group=pd.read_csv(group_file).fillna('')
         if user:
             self.Citations_indices,self.cited_articles=_gs_profile_to_dataframes(\
                             user,number_of_articles=self.articles.shape[0],sleep=10)
@@ -192,7 +192,7 @@ class articles(publications):
         self.institution_authors=self.institution_authors.append({self.columns.Full_Name:full_name,\
                                                               self.columns.Author_Names:author_names,\
                                                               self.columns.Control:control},ignore_index=True)
-        self.institution_authors.to_json('authors.json')
+        self.institution_authors.to_csv('authors.csv',index=False)
         
     def add_institution_group(self):
         wrn='Author not found'
@@ -232,7 +232,7 @@ class articles(publications):
                     self.institution_group=pd.DataFrame()  
                     self.institution_group=self.institution_group.append({self.columns.Full_Name:author_Series.Full_Name,\
                                                                   self.columns.Institution_Group:Group},ignore_index=True)
-                    self.institution_group.to_json('groups.json')
+                    self.institution_group.to_csv('groups.csv',index=False)
         else:
             warnings.warn(wrn)
 
