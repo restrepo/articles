@@ -1,3 +1,4 @@
+#/usr/bin/env python
 import numpy as np
 import pandas as pd
 import re
@@ -8,6 +9,7 @@ import sys
 from IPython.display import display, HTML
 import tabulate #sudo pip3 install tabulate
 import utilities as ut
+from bs4 import BeautifulSoup
 from cmdlike import *
 pd.set_option('display.max_rows', 500)
 pd.set_option('display.max_columns', 500)
@@ -84,7 +86,52 @@ def _get_quartil(issn='1550-7998',journal_hindex=False):
     if journal_hindex:
         return quartil,hindex_journal
     else:
-        return quartil    
+        return quartil  
+    
+    
+def _gs_profile_to_dataframes(user='-6mndWkAAAAJ',number_of_articles=100,sleep=10):
+    '''
+    Convert the first number_of_articles of a google scholar profile for user id
+    to two dataframes
+    1) Citations indices
+    2) Article, Cites, Year columns
+    '''
+    i=0
+     
+    Citations_indices=pd.DataFrame()
+    cited_articles=pd.DataFrame()
+    chk_citations=False
+    while True:
+        if i>0:
+            print('waiting %d sec. to avoid robot detection...' %sleep)
+            time.sleep(sleep)
+        iold=i
+        i=i+100
+        r=requests.get('https://scholar.google.com/citations?sortby=pubdate&hl=en&user=%s' %user\
+                       +'&view_op=list_works&cstart=%d&pagesize=%d' %(iold,i) )
+        
+        if r.status_code==200:
+            soup = BeautifulSoup(r.text,"lxml")
+            s=soup.find_all("table")
+            if len(s)==2: #proper formated profile output 
+                chk_citations=True
+                Citations_indices=Citations_indices.append( ut.html_to_DataFrame(s[0].decode(),\
+                    headings=['Citations indices','All','Since %d' %(time.localtime().tm_year-5)]) )
+                cited_articles=cited_articles.append(\
+                                ut.html_to_DataFrame(s[1].decode(),headings=['Article','Cites','Year']) )
+        if i>number_of_articles:
+            break
+                
+        
+    if chk_citations:
+        cited_articles=cited_articles[\
+                ~cited_articles.Article.isnull()].reset_index(drop=True)
+        an=cited_articles[cited_articles.Year.isnull()]
+        for i in an.index:
+            cited_articles.loc[i,'Cites']=0
+            cited_articles.loc[i,'Year']=an.ix[i]['Cites']
+        
+    return Citations_indices,cited_articles
 
 class publications(object):
     '''Add Generic publication data'''
@@ -101,8 +148,9 @@ class articles(publications):
     journal=pd.Series()
     columns=pd.Series({'Full_Name':'Full_Name','Author_Names':'Author_Names','Control':'Control',\
                       'Institution_Authors':'Institution_Authors','Institution_Group':'Institution_Group'})
-
-    def __init__(self,csv_file='citations.csv',citations_file=None,authors_file=None,group_file=None):
+    cited_articles_hash=pd.Series()
+    articles_hash=pd.Series()
+    def __init__(self,csv_file='citations.csv',user='',citations_file=None,authors_file=None,group_file=None):
         #DEBUG: check file
         self.articles=pd.read_csv(csv_file).fillna('')
         #Fix problem with column Authors
@@ -119,6 +167,14 @@ class articles(publications):
         if group_file:
             #DEBUG: chek is file exists,
             self.institution_group=pd.read_json(group_file).fillna('')
+        if user:
+            self.Citations_indices,self.cited_articles=_gs_profile_to_dataframes(\
+                            user,number_of_articles=self.articles.shape[0],sleep=10)
+            if self.cited_articles.shape[0]>0:
+                self.cited_articles_hash=\
+                    self.cited_articles.Article.str.replace(r"[^a-zA-Z0-9 ]", " ").str.lower().str.replace('\s+','')
+                self.articles_hash=\
+                    self.articles.Title.str.replace(r"[^a-zA-Z0-9 ]", " ").str.lower().str.replace('\s+','')
             
     def add_institution_author(self):
         #DEBUG: Check and load file
@@ -190,11 +246,35 @@ class articles(publications):
     def get_IF(self,journal_name='Physical Review D'):
         return _get_impact_factor_from_journal_name(journal_name='Physical Review D')
     
+    def get_citations(self,user='-6mndWkAAAAJ',number_of_articles=100,sleep=10):
+        self.Citations_indices,self.cited_articles=_gs_profile_to_dataframes(\
+                        user=user,number_of_articles=number_of_articles,sleep=sleep)
+        if self.cited_articles.shape[0]>0:
+            self.cited_articles_hash=\
+                    self.cited_articles.Article.str.replace(r"[^a-zA-Z0-9 ]", " ").str.lower().str.replace('\s+','')
+            self.articles_hash=\
+                    self.articles.Title.str.replace(r"[^a-zA-Z0-9 ]", " ").str.lower().str.replace('\s+','')
+            
+        return self.Citations_indices,self.cited_articles
+
+    def article_index_cites(self,index=0): 
+        if self.cited_articles_hash.shape[0]>0:
+            mt=self.cited_articles[self.cited_articles_hash.str.match(self.articles_hash[index])]
+            if len(mt)>0:
+                if len(mt)>1: #multiple matches. Refine search with, e.g, volume
+                    mtv=mt[mt.thash.str.contains(str(self.articles.Volume[index]))]
+                    if len(mtv)>0:
+                        mt=mtv
+        
+                return mt.Cites.replace('*','').replace('','0').astype(int).max()
+        else:
+            return ''
+    
     def articles_update(self,cites=True,institution_authors=False,institution_groups=False,DOI=False,\
                         impact_factor=False):
         self.fulldoi=pd.DataFrame()
         journal_columns=['Impact_Factor','Quartil','Journal_Hindex']
-        newcolumns=['Institution_Authors','Institution_Groups','DOI','ISSN','DOI_Journal']+journal_columns
+        newcolumns=['Institution_Authors','Institution_Groups','DOI','ISSN','DOI_Journal','Cites']+journal_columns
         for newcolumn in newcolumns:
             if not newcolumn in self.articles.columns:
                 self.articles[newcolumn]=''
@@ -270,7 +350,13 @@ class articles(publications):
                         
                         
                 self.fulldoi=self.fulldoi.append(rr,ignore_index=True).fillna('')
-                
+            #Update Cites:
+            if not self.articles.ix[i].Cites:
+                if update_column(self.articles.ix[i],'Cites') and self.cited_articles_hash.shape[0]>0:
+                        #DEBUG implement method like here with self.article_index_cites
+                        self.articles.loc[i,'Cites']=self.article_index_cites(i)
+                    
+            
             #WARNING: Only specific journal info related code from here: See the continue !!!!
             #JOURNAL info:
             if i>0 and 'ISSN' in self.articles:
