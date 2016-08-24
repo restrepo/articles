@@ -1,4 +1,5 @@
 #/usr/bin/env python
+#BEBUG: Update insitutional authors in Groups even with filled columns
 import numpy as np
 import pandas as pd
 import re
@@ -6,6 +7,7 @@ import requests
 import warnings
 import time
 import sys
+import os
 from IPython.display import display, HTML
 import tabulate #sudo pip3 install tabulate
 import utilities as ut
@@ -59,7 +61,7 @@ def _get_doi(surname='Florez',\
 def _get_impact_factor_from_journal_name(journal_name='Physical Review D'):
     '''
       For the input Journal name obtain
-      the pandas DataFrame with Years and IF as columns
+      tPérezhe pandas DataFrame with Years and IF as columns
     '''
     q=journal_name.lower().replace(' ','-')
     URL='http://www.journal-database.com/journal/%s.html' %q        
@@ -148,6 +150,8 @@ class articles(publications):
     journal=pd.Series()
     columns=pd.Series({'Full_Name':'Full_Name','Author_Names':'Author_Names','Control':'Control',\
                       'Institution_Authors':'Institution_Authors','Institution_Group':'Institution_Group'})
+    institution_authors=pd.DataFrame()
+    institution_group=pd.DataFrame()
     cited_articles_hash=pd.Series()
     articles_hash=pd.Series()
     def __init__(self,csv_file='citations.csv',user='',citations_file=None,authors_file=None,group_file=None):
@@ -162,10 +166,12 @@ class articles(publications):
             
         if authors_file:
             #DEBUG: chek is file exists,
+            self.authors_file=authors_file
             self.institution_authors=pd.read_csv(authors_file).fillna('')
             
         if group_file:
             #DEBUG: chek is file exists,
+            self.group_file=group_file
             self.institution_group=pd.read_csv(group_file).fillna('')
         if user:
             self.Citations_indices,self.cited_articles=_gs_profile_to_dataframes(\
@@ -180,15 +186,10 @@ class articles(publications):
         #DEBUG: Check and load file
         full_name=input('Full name: ')
         #DEBUG: Ask for more author names and update author names separated by semicolons
-        author_names=input('Author names\n(Example: Juan Perez; J. Perez; J. Pérez):\n')
+        author_names=input('Author names\n(Example: Perez, Juan;Perez, J.;Pérez, J.):\n')
         #DEBUG: default to 0
         control=input('Additional identitication number: ') 
-        
-        #DEBUG: if not file creates it
-        iffile=False
-        if not iffile:
-            self.institution_authors=pd.DataFrame()
-            
+                    
         self.institution_authors=self.institution_authors.append({self.columns.Full_Name:full_name,\
                                                               self.columns.Author_Names:author_names,\
                                                               self.columns.Control:control},ignore_index=True)
@@ -226,13 +227,10 @@ class articles(publications):
                     ai=input('Give Number of line:')
                     author_Series=author_match.ix[ai]
                 Group=input('Group name for\n%s\n(Example: IA: Inteligencia Artificial)' %author_Series.Full_Name)
-                #DEBUG: if not file creates it
-                iffile=False
-                if not iffile:
-                    self.institution_group=pd.DataFrame()  
-                    self.institution_group=self.institution_group.append({self.columns.Full_Name:author_Series.Full_Name,\
+                
+                self.institution_group=self.institution_group.append({self.columns.Full_Name:author_Series.Full_Name,\
                                                                   self.columns.Institution_Group:Group},ignore_index=True)
-                    self.institution_group.to_csv('groups.csv',index=False)
+                self.institution_group.to_csv('groups.csv',index=False)
         else:
             warnings.warn(wrn)
 
@@ -396,4 +394,5 @@ class articles(publications):
             self.fulldoi.to_json('fulldoi.json')
         
                         
-            
+#TOD0 reset databases method:
+#pd.DataFrame().to_csv('authors.csv',index=False)
