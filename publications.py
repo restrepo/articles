@@ -331,7 +331,7 @@ class articles(publications):
                 if len(rr)>0:
                     rr=pd.Series(rr)
                     if update_column(self.articles.ix[i],'DOI') and 'URL' in rr:
-                        self.articles.loc[i,'DOI']=rr['URL']
+                        self.articles.loc[i,'DOI']=rr['URL'].split('http://dx.doi.org/')[-1]
                     if update_column(self.articles.ix[i],'ISSN') and 'ISSN' in rr:
                         issn=''
                         if type(rr.ISSN)==list:
