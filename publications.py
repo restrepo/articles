@@ -154,9 +154,13 @@ class articles(publications):
     institution_group=pd.DataFrame()
     cited_articles_hash=pd.Series()
     articles_hash=pd.Series()
-    def __init__(self,csv_file='citations.csv',user='',citations_file=None,authors_file=None,group_file=None):
+    def __init__(self,csv_file='citations.csv',excel_file='',user='',citations_file=None,authors_file=None,\
+                 group_file=None):
         #DEBUG: check file
-        self.articles=pd.read_csv(csv_file).fillna('')
+        if csv_file:
+            self.articles=pd.read_csv(csv_file).fillna('')
+        if excel_file:
+            self.articles=pd.read_excel(excel_file)
         #Fix problem with column Authors
         if self.articles.shape[0]>0 and self.articles.columns[0].find('Authors')>-1:
             self.articles=self.articles.rename(columns={self.articles.columns[0]:'Authors'})
@@ -331,7 +335,7 @@ class articles(publications):
                 if len(rr)>0:
                     rr=pd.Series(rr)
                     if update_column(self.articles.ix[i],'DOI') and 'URL' in rr:
-                        self.articles.loc[i,'DOI']=rr['URL'].split('http://dx.doi.org/')[-1]
+                        self.articles.loc[i,'DOI']=rr['URL']
                     if update_column(self.articles.ix[i],'ISSN') and 'ISSN' in rr:
                         issn=''
                         if type(rr.ISSN)==list:
